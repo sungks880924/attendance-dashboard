@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>근태 현황판 - 무석콜마</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!-- SheetJS: 엑셀 파일 파싱 라이브러리 -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Noto Sans KR', sans-serif;
+  background:#f0f2f5; min-height:100vh;
+  padding:24px 20px; color:#1a1a2e;
+}
+
+/* ── 업로드 영역 ── */
+.upload-section {
+  background:#fff; border-radius:16px; padding:24px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.08); margin-bottom:24px;
+  border:2px dashed #d1d5db; transition:border-color .2s;
+}
+.upload-section.has-data { border-style:solid; border-color:#e5e7eb; }
+.upload-section.dragover { border-color:#667eea; background:#f5f3ff; }
+.upload-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.upload-title { font-size:15px; font-weight:700; color:#1a1a2e; }
+.upload-sub { font-size:12px; color:#888; margin-top:2px; }
+.upload-btn-wrap { display:flex; gap:8px; align-items:center; }
+.upload-btn {
+  padding:9px 20px; border-radius:50px; border:none; cursor:pointer;
+  font-size:13px; font-weight:700; font-family:'Noto Sans KR',sans-serif;
+  background:linear-gradient(135deg,#667eea,#764ba2);
+  color:#fff; box-shadow:0 3px 10px rgba(102,126,234,0.4);
+  transition:all .2s;
+}
+.upload-btn:hover { transform:translateY(-1px); box-shadow:0 5px 16px rgba(102,126,234,0.5); }
+.upload-status { font-size:13px; color:#10b981; font-weight:600; }
+.upload-status.error { color:#ef4444; }
+.file-input { display:none; }
+.upload-drop-hint { 
+  text-align:center; padding:20px; color:#ccc; font-size:14px;
+  display:none;
+}
+.upload-drop-hint.show { display:block; }
+.loaded-files {
+  display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;
+}
+.file-chip {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 12px; border-radius:20px;
+  background:#ede9fe; color:#5b21b6; font-size:12px; font-weight:700;
+}
+.file-chip-remove {
+  cursor:pointer; opacity:0.6; font-size:14px; line-height:1;
+  background:none; border:none; color:inherit;
+}
+.file-chip-remove:hover { opacity:1; }
+
+/* ── 상단 타이틀 ── */
+.top-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+.top-title { font-size:28px; font-weight:900; color:#1a1a2e; }
+.top-sub { font-size:13px; color:#888; margin-top:2px; }
+.legend { display:flex; gap:12px; align-items:center; }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; }
+.legend-dot { width:10px; height:10px; border-radius:50%; }
+
+/* ── 필터 바 ── */
+.filter-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center; }
+.filter-pill {
+  display:flex; gap:6px; align-items:center; background:#fff;
+  border-radius:50px; padding:8px 16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);
+}
+.filter-label { font-size:12px; color:#888; font-weight:600; }
+.filter-select {
+  border:none; outline:none; font-size:14px; font-weight:700;
+  color:#1a1a2e; background:transparent; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+}
+.search-wrap {
+  flex:1; min-width:200px; background:#fff; border-radius:50px;
+  padding:8px 16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);
+  display:flex; align-items:center; gap:8px;
+}
+.search-inp {
+  border:none; outline:none; font-size:14px; flex:1;
+  font-family:'Noto Sans KR',sans-serif; color:#1a1a2e;
+}
+.search-inp::placeholder { color:#ccc; }
+
+/* ── 요약 카드 ── */
+.summary-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px; }
+.sum-card {
+  border-radius:16px; padding:16px 18px; color:#fff;
+  position:relative; overflow:hidden;
+  box-shadow:0 4px 16px rgba(0,0,0,0.12); transition:transform .2s;
+}
+.sum-card:hover { transform:translateY(-3px); }
+.sum-card::after {
+  content:''; position:absolute; top:-15px; right:-15px;
+  width:70px; height:70px; border-radius:50%; background:rgba(255,255,255,0.12);
+}
+.sum-card-1 { background:linear-gradient(135deg,#667eea,#764ba2); }
+.sum-card-2 { background:linear-gradient(135deg,#f97316,#ea580c); }
+.sum-card-3 { background:linear-gradient(135deg,#06b6d4,#0284c7); }
+.sum-card-4 { background:linear-gradient(135deg,#10b981,#059669); }
+.sum-card-5 { background:linear-gradient(135deg,#f43f5e,#e11d48); }
+.sum-label { font-size:12px; opacity:0.85; font-weight:600; margin-bottom:4px; }
+.sum-num { font-size:36px; font-weight:900; line-height:1; }
+.sum-unit { font-size:12px; opacity:0.8; margin-top:4px; }
+
+/* ── 탭 ── */
+.tab-wrap { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,0.06); margin-bottom:20px; }
+.tab-group { display:flex; gap:6px; flex-wrap:wrap; }
+.tab-btn {
+  padding:8px 18px; border-radius:50px; border:none; cursor:pointer;
+  font-size:13px; font-weight:700; transition:all .2s;
+  font-family:'Noto Sans KR',sans-serif; background:#f0f2f5; color:#888;
+}
+.tab-btn.active { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; box-shadow:0 3px 10px rgba(102,126,234,0.4); }
+.tab-btn:hover:not(.active) { background:#e5e7eb; color:#555; }
+
+/* ── 뷰 전환 ── */
+.view-toggle { display:flex; gap:8px; margin-bottom:16px; align-items:center; }
+.view-btn {
+  padding:7px 16px; border-radius:8px; border:1.5px solid #e5e7eb;
+  background:#fff; font-size:13px; font-weight:600; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif; color:#666; transition:all .15s;
+}
+.view-btn.active { border-color:#667eea; background:#ede9fe; color:#5b21b6; }
+.result-count { font-size:13px; color:#888; margin-left:auto; }
+
+/* ── 조별 카드 뷰 ── */
+.group-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; }
+.group-card { background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06); transition:box-shadow .2s; }
+.group-card:hover { box-shadow:0 6px 20px rgba(0,0,0,0.12); }
+.group-header { padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+.group-name { font-size:15px; font-weight:800; color:#fff; }
+.group-badge { font-size:12px; font-weight:700; padding:3px 10px; border-radius:20px; background:rgba(255,255,255,0.25); color:#fff; }
+.group-body { padding:12px 14px; }
+.person-row {
+  display:flex; align-items:center; padding:9px 10px; border-radius:8px;
+  margin-bottom:6px; background:#f9fafb; gap:8px; cursor:pointer; transition:background .15s;
+}
+.person-row:hover { background:#ede9fe; }
+.person-row:last-child { margin-bottom:0; }
+.person-name { font-size:14px; font-weight:700; min-width:55px; color:#1a1a2e; }
+.person-days { display:flex; flex-wrap:wrap; gap:4px; flex:1; }
+.day-tag { font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; white-space:nowrap; }
+.day-out { background:#fee2e2; color:#dc2626; }
+.day-in  { background:#dbeafe; color:#1d4ed8; }
+.person-total { font-size:12px; font-weight:700; min-width:30px; text-align:right; color:#888; }
+
+/* ── 리스트 뷰 ── */
+.list-wrap { background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06); }
+.list-table { width:100%; border-collapse:collapse; }
+.list-table th { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; padding:12px 14px; text-align:left; font-size:13px; font-weight:700; }
+.list-table th:first-child { border-radius:12px 0 0 0; }
+.list-table th:last-child  { border-radius:0 12px 0 0; }
+.list-table td { padding:10px 14px; font-size:13px; border-bottom:1px solid #f0f2f5; background:#fff; }
+.list-table tr:last-child td { border-bottom:none; }
+.list-table tr:hover td { background:#f9fafb; cursor:pointer; }
+.badge-out { background:#fee2e2; color:#dc2626; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:700; margin:2px; display:inline-block; }
+.badge-in  { background:#dbeafe; color:#1d4ed8; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:700; margin:2px; display:inline-block; }
+
+/* ── 개인 상세 모달 ── */
+.modal-bg { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; }
+.modal-bg.show { display:flex; }
+.modal { background:#fff; border-radius:20px; padding:28px; width:520px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,0.2); max-height:80vh; overflow-y:auto; }
+.modal-title { font-size:20px; font-weight:900; margin-bottom:4px; }
+.modal-sub { font-size:13px; color:#888; margin-bottom:20px; }
+.modal-month { margin-bottom:16px; }
+.modal-month-title { font-size:13px; font-weight:700; color:#667eea; margin-bottom:8px; padding-bottom:6px; border-bottom:2px solid #ede9fe; }
+.modal-day-row { display:flex; align-items:center; padding:7px 10px; border-radius:8px; margin-bottom:4px; }
+.modal-day-row.out { background:#fee2e2; }
+.modal-day-row.in  { background:#dbeafe; }
+.modal-day-num { font-size:13px; font-weight:700; min-width:50px; }
+.modal-day-type { font-size:13px; font-weight:700; }
+.modal-day-row.out .modal-day-type { color:#dc2626; }
+.modal-day-row.in  .modal-day-type { color:#1d4ed8; }
+.modal-close { float:right; background:none; border:none; font-size:20px; cursor:pointer; color:#888; }
+
+.no-data { text-align:center; color:#ccc; padding:40px; font-size:15px; grid-column:1/-1; }
+
+/* 조별 색상 */
+.gc-0  { background:linear-gradient(135deg,#667eea,#764ba2); }
+.gc-1  { background:linear-gradient(135deg,#f97316,#ea580c); }
+.gc-2  { background:linear-gradient(135deg,#06b6d4,#0284c7); }
+.gc-3  { background:linear-gradient(135deg,#10b981,#059669); }
+.gc-4  { background:linear-gradient(135deg,#f43f5e,#e11d48); }
+.gc-5  { background:linear-gradient(135deg,#8b5cf6,#6d28d9); }
+.gc-6  { background:linear-gradient(135deg,#f59e0b,#d97706); }
+.gc-7  { background:linear-gradient(135deg,#ec4899,#be185d); }
+.gc-8  { background:linear-gradient(135deg,#14b8a6,#0f766e); }
+.gc-9  { background:linear-gradient(135deg,#6366f1,#4338ca); }
+.gc-10 { background:linear-gradient(135deg,#84cc16,#65a30d); }
+.gc-11 { background:linear-gradient(135deg,#0ea5e9,#0369a1); }
+.gc-12 { background:linear-gradient(135deg,#d946ef,#a21caf); }
+.gc-13 { background:linear-gradient(135deg,#fb7185,#e11d48); }
+.gc-14 { background:linear-gradient(135deg,#a78bfa,#7c3aed); }
+</style>
+</head>
+<body>
+
+<!-- ── 상단 타이틀 ── -->
+<div class="top-bar">
+  <div>
+    <div class="top-title">📋 근태 현황판</div>
+    <div class="top-sub">무석콜마 미타카(未打卡) 기록 관리 시스템</div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#1d4ed8;"></div>출근 지문 미인식</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#dc2626;"></div>퇴근 지문 미인식</div>
+  </div>
+</div>
+
+<!-- ── 엑셀 업로드 영역 ── -->
+<div class="upload-section" id="uploadSection"
+     ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+  <div class="upload-header">
+    <div>
+      <div class="upload-title">📂 엑셀 파일 업로드</div>
+      <div class="upload-sub">미타카 기록표 xlsx 파일을 업로드하세요 · 여러 파일 동시 업로드 가능 · 드래그&드롭 지원</div>
+    </div>
+    <div class="upload-btn-wrap">
+      <span class="upload-status" id="uploadStatus"></span>
+      <button class="upload-btn" style="background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 3px 10px rgba(239,68,68,0.4);" onclick="clearStorage()">🗑️ 전체 삭제</button>
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">📁 파일 선택</button>
+      <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls" multiple onchange="onFileSelect(event)">
+    </div>
+  </div>
+  <div class="upload-drop-hint show" id="dropHint">📄 여기에 엑셀 파일을 드래그하여 놓으세요</div>
+  <div class="loaded-files" id="loadedFiles"></div>
+</div>
+
+<!-- ── 필터 바 ── -->
+<div class="filter-bar">
+  <div class="filter-pill">
+    <span class="filter-label">월</span>
+    <select class="filter-select" id="monthSel" onchange="render()">
+      <option value="all">전체</option>
+    </select>
+  </div>
+  <div class="filter-pill">
+    <span class="filter-label">조</span>
+    <select class="filter-select" id="groupSel" onchange="render()">
+      <option value="all">전체</option>
+    </select>
+  </div>
+  <div class="filter-pill">
+    <span class="filter-label">유형</span>
+    <select class="filter-select" id="typeSel" onchange="render()">
+      <option value="all">전체</option>
+      <option value="출근">출근 미인식</option>
+      <option value="퇴근">퇴근 미인식</option>
+    </select>
+  </div>
+  <div class="search-wrap">
+    <span style="color:#ccc;">🔍</span>
+    <input class="search-inp" id="searchInp" placeholder="이름으로 검색..." oninput="render()">
+  </div>
+</div>
+
+<!-- ── 요약 카드 ── -->
+<div class="summary-row">
+  <div class="sum-card sum-card-1">
+    <div class="sum-label">총 미타카 건수</div>
+    <div class="sum-num" id="s-total">0</div>
+    <div class="sum-unit">건</div>
+  </div>
+  <div class="sum-card sum-card-2">
+    <div class="sum-label">출근 미인식</div>
+    <div class="sum-num" id="s-in">0</div>
+    <div class="sum-unit">건</div>
+  </div>
+  <div class="sum-card sum-card-3">
+    <div class="sum-label">퇴근 미인식</div>
+    <div class="sum-num" id="s-out">0</div>
+    <div class="sum-unit">건</div>
+  </div>
+  <div class="sum-card sum-card-4">
+    <div class="sum-label">해당 인원</div>
+    <div class="sum-num" id="s-people">0</div>
+    <div class="sum-unit">명</div>
+  </div>
+  <div class="sum-card sum-card-5">
+    <div class="sum-label">해당 조</div>
+    <div class="sum-num" id="s-groups">0</div>
+    <div class="sum-unit">개 조</div>
+  </div>
+</div>
+
+<!-- ── 월 탭 ── -->
+<div class="tab-wrap">
+  <div class="tab-group" id="monthTabs">
+    <button class="tab-btn active" onclick="setMonthTab('all',this)">전체</button>
+  </div>
+</div>
+
+<!-- ── 뷰 전환 ── -->
+<div class="view-toggle">
+  <button class="view-btn active" id="btnGroup" onclick="setView('group')">🏢 조별 보기</button>
+  <button class="view-btn" id="btnList"  onclick="setView('list')">📋 리스트 보기</button>
+  <span class="result-count" id="resultCount"></span>
+</div>
+
+<!-- ── 조별 뷰 ── -->
+<div id="groupView">
+  <div class="group-grid" id="groupGrid">
+    <div class="no-data">엑셀 파일을 업로드하면 데이터가 표시됩니다 📂</div>
+  </div>
+</div>
+
+<!-- ── 리스트 뷰 ── -->
+<div id="listView" style="display:none;">
+  <div class="list-wrap">
+    <table class="list-table">
+      <thead>
+        <tr>
+          <th>이름</th><th>조</th><th>월</th><th>미타카 날짜 및 유형</th><th>건수</th>
+        </tr>
+      </thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── 개인 상세 모달 ── -->
+<div class="modal-bg" id="modalBg" onclick="closeModal(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('modalBg').classList.remove('show')">✕</button>
+    <div class="modal-title" id="modal-name"></div>
+    <div class="modal-sub"   id="modal-group"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ── 상수 ───────────────────────────────────────────
+const GROUP_KR = {
+  '企划':'기획','功效评价':'효능평가','安评':'안전평가','底妆组':'베이스메이크업조',
+  '彩妆1组':'색조1조','彩妆2组':'색조2조','彩妆3组':'색조3조','彩妆4组':'색조4조',
+  '护肤1组':'스킨케어1조','护肤2组':'스킨케어2조','护肤3组':'스킨케어3조','护肤4组':'스킨케어4조',
+  '素材开发':'소재개발','防晒组':'선케어조','香精':'향료'
+};
+const GROUP_COLORS = ['gc-0','gc-1','gc-2','gc-3','gc-4','gc-5','gc-6','gc-7','gc-8','gc-9','gc-10','gc-11','gc-12','gc-13','gc-14'];
+const groupColorMap = {};
+let colorIdx = 0;
+function getGroupColor(g) {
+  if (!groupColorMap[g]) groupColorMap[g] = GROUP_COLORS[colorIdx++ % GROUP_COLORS.length];
+  return groupColorMap[g];
+}
+
+// ── 상태 ───────────────────────────────────────────
+let RAW = {};          // { "1月": [{name,group,days,count},...], ... }
+let loadedFileNames = [];
+let currentView = 'group';
+
+// ── 엑셀 파싱 ──────────────────────────────────────
+function parseExcel(arrayBuffer, fileName) {
+  const wb = XLSX.read(arrayBuffer, {type:'array'});
+  const result = {};
+
+  wb.SheetNames.forEach(sheetName => {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if (rows.length < 2) return;
+
+    // 헤더행(序号 있는 행) 찾기
+    let headerIdx = -1;
+    for (let i=0; i<rows.length; i++) {
+      if (String(rows[i][0]).includes('序号')) { headerIdx = i; break; }
+    }
+    if (headerIdx < 0) return;
+
+    const records = [];
+    for (let i = headerIdx+1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row[0] || isNaN(parseInt(row[0]))) continue;
+      const name  = String(row[1]||'').trim();
+      const group = String(row[5]||'').trim();
+      if (!name || !group || group === '组别') continue;
+
+      const days = {};
+      for (let d=0; d<31; d++) {
+        const val = String(row[6+d]||'').trim();
+        if (val === '출근' || val === '퇴근') days[String(d+1)] = val;
+      }
+      records.push({ name, group, days, count: Object.keys(days).length });
+    }
+
+    const key = sheetName.trim();
+    if (records.length > 0) result[key] = records;
+  });
+
+  return result;
+}
+
+function mergeData(newData) {
+  Object.entries(newData).forEach(([month, recs]) => {
+    if (!RAW[month]) {
+      RAW[month] = recs;
+    } else {
+      // 기존 월 데이터와 병합 (이름+조 기준 중복 제거, 새 데이터 우선)
+      const existing = RAW[month].filter(e =>
+        !recs.find(r => r.name === e.name && r.group === e.group)
+      );
+      RAW[month] = [...existing, ...recs];
+    }
+  });
+}
+
+// ── localStorage 저장/불러오기 ───────────────────────
+const STORAGE_KEY = 'museok_attendance_v2';
+
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ RAW, loadedFileNames }));
+  } catch(e) {
+    console.warn('저장 실패 (용량 초과일 수 있음):', e);
+  }
+}
+
+function loadFromStorage() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return false;
+    const { RAW: savedRAW, loadedFileNames: savedNames } = JSON.parse(saved);
+    if (!savedRAW || Object.keys(savedRAW).length === 0) return false;
+    RAW = savedRAW;
+    loadedFileNames = savedNames || [];
+    return true;
+  } catch(e) { return false; }
+}
+
+function clearStorage() {
+  if (!confirm('저장된 데이터를 모두 삭제할까요?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  RAW = {}; loadedFileNames = [];
+  document.getElementById('uploadSection').classList.remove('has-data');
+  document.getElementById('dropHint').classList.add('show');
+  document.getElementById('uploadStatus').textContent = '';
+  updateFileChips();
+  rebuildFilters();
+  render();
+}
+
+// ── 파일 업로드 처리 ───────────────────────────────
+async function processFiles(files) {
+  const status = document.getElementById('uploadStatus');
+  status.className = 'upload-status';
+  status.textContent = '읽는 중...';
+
+  let loaded = 0;
+  for (const file of files) {
+    if (!file.name.match(/\.xlsx?$/i)) continue;
+    try {
+      const buf = await file.arrayBuffer();
+      const data = parseExcel(buf, file.name);
+      mergeData(data);
+      if (!loadedFileNames.includes(file.name)) loadedFileNames.push(file.name);
+      loaded++;
+    } catch(e) {
+      console.error(file.name, e);
+    }
+  }
+
+  if (loaded > 0) {
+    status.textContent = `✅ ${loaded}개 파일 로드 완료`;
+    document.getElementById('uploadSection').classList.add('has-data');
+    document.getElementById('dropHint').classList.remove('show');
+    saveToStorage();
+    updateFileChips();
+    rebuildFilters();
+    render();
+  } else {
+    status.className = 'upload-status error';
+    status.textContent = '❌ 유효한 파일이 없습니다';
+  }
+}
+
+function onFileSelect(e) { processFiles(e.target.files); e.target.value=''; }
+function onDragOver(e)   { e.preventDefault(); document.getElementById('uploadSection').classList.add('dragover'); }
+function onDragLeave()   { document.getElementById('uploadSection').classList.remove('dragover'); }
+function onDrop(e)       { e.preventDefault(); document.getElementById('uploadSection').classList.remove('dragover'); processFiles(e.dataTransfer.files); }
+
+function updateFileChips() {
+  const wrap = document.getElementById('loadedFiles');
+  wrap.innerHTML = loadedFileNames.map((f,i) => `
+    <div class="file-chip">
+      📄 ${f}
+      <button class="file-chip-remove" onclick="removeFile(${i})">✕</button>
+    </div>`).join('');
+}
+
+function removeFile(idx) {
+  loadedFileNames.splice(idx,1);
+  RAW = {};
+  saveToStorage();
+  updateFileChips();
+  if (loadedFileNames.length === 0) {
+    document.getElementById('uploadSection').classList.remove('has-data');
+    document.getElementById('dropHint').classList.add('show');
+    document.getElementById('uploadStatus').textContent = '';
+  } else {
+    document.getElementById('uploadStatus').textContent = '파일을 다시 선택해주세요';
+    document.getElementById('uploadStatus').className = 'upload-status error';
+  }
+  rebuildFilters();
+  render();
+}
+
+// ── 필터 재구성 ────────────────────────────────────
+function rebuildFilters() {
+  const months = Object.keys(RAW).sort((a,b) => {
+    const n = s => parseInt(s.replace(/[^0-9]/g,''));
+    return n(a) - n(b);
+  });
+  const groups = [...new Set(Object.values(RAW).flat().map(r=>r.group))].sort();
+
+  // 월 셀렉트
+  const monthSel = document.getElementById('monthSel');
+  monthSel.innerHTML = '<option value="all">전체</option>' +
+    months.map(m => `<option value="${m}">${m.replace('月','월')}</option>`).join('');
+
+  // 조 셀렉트
+  const groupSel = document.getElementById('groupSel');
+  groupSel.innerHTML = '<option value="all">전체</option>' +
+    groups.map(g => `<option value="${g}">${GROUP_KR[g]||g} (${g})</option>`).join('');
+
+  // 월 탭
+  const tabGroup = document.getElementById('monthTabs');
+  tabGroup.innerHTML = '<button class="tab-btn active" onclick="setMonthTab(\'all\',this)">전체</button>' +
+    months.map(m => `<button class="tab-btn" onclick="setMonthTab('${m}',this)">${m.replace('月','월')}</button>`).join('');
+}
+
+// ── 탭/뷰 전환 ────────────────────────────────────
+let currentMonth = 'all';
+function setMonthTab(m, btn) {
+  currentMonth = m;
+  document.querySelectorAll('#monthTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('monthSel').value = m;
+  render();
+}
+function setView(v) {
+  currentView = v;
+  document.getElementById('btnGroup').classList.toggle('active', v==='group');
+  document.getElementById('btnList').classList.toggle('active', v==='list');
+  document.getElementById('groupView').style.display = v==='group' ? '' : 'none';
+  document.getElementById('listView').style.display  = v==='list'  ? '' : 'none';
+}
+
+// ── 필터링 ────────────────────────────────────────
+function getFiltered() {
+  const selMonth = document.getElementById('monthSel').value;
+  const selGroup = document.getElementById('groupSel').value;
+  const selType  = document.getElementById('typeSel').value;
+  const search   = document.getElementById('searchInp').value.trim();
+
+  const months = selMonth === 'all' ? Object.keys(RAW) : [selMonth];
+  const results = [];
+
+  months.forEach(m => {
+    (RAW[m]||[]).forEach(r => {
+      if (selGroup !== 'all' && r.group !== selGroup) return;
+      if (search && !r.name.includes(search)) return;
+      let days = r.days;
+      if (selType !== 'all') days = Object.fromEntries(Object.entries(r.days).filter(([,v])=>v===selType));
+      if (Object.keys(days).length === 0) return;
+      results.push({month:m, name:r.name, group:r.group, days, count:Object.keys(days).length});
+    });
+  });
+  return results;
+}
+
+// ── 렌더 ──────────────────────────────────────────
+function render() {
+  const data = getFiltered();
+
+  // 요약
+  let totalIn=0, totalOut=0; const people=new Set(), groups=new Set();
+  data.forEach(r => {
+    Object.values(r.days).forEach(v => { v==='출근' ? totalIn++ : totalOut++; });
+    people.add(r.name+'|'+r.group); groups.add(r.group);
+  });
+  document.getElementById('s-total').textContent   = totalIn + totalOut;
+  document.getElementById('s-in').textContent      = totalIn;
+  document.getElementById('s-out').textContent     = totalOut;
+  document.getElementById('s-people').textContent  = people.size;
+  document.getElementById('s-groups').textContent  = groups.size;
+  document.getElementById('resultCount').textContent = `총 ${data.length}건`;
+
+  if (currentView === 'group') renderGroupView(data);
+  else renderListView(data);
+}
+
+function renderGroupView(data) {
+  const byGroup = {};
+  data.forEach(r => { if (!byGroup[r.group]) byGroup[r.group] = []; byGroup[r.group].push(r); });
+
+  const grid = document.getElementById('groupGrid');
+  grid.innerHTML = '';
+
+  if (Object.keys(byGroup).length === 0) {
+    grid.innerHTML = Object.keys(RAW).length === 0
+      ? '<div class="no-data">📂 엑셀 파일을 업로드하면 데이터가 표시됩니다</div>'
+      : '<div class="no-data">✅ 해당 조건의 미타카 기록이 없습니다</div>';
+    return;
+  }
+
+  Object.keys(byGroup).sort().forEach(group => {
+    const recs = byGroup[group];
+    const totalCnt = recs.reduce((a,r)=>a+r.count,0);
+    const colorCls = getGroupColor(group);
+    const card = document.createElement('div');
+    card.className = 'group-card';
+    card.innerHTML = `
+      <div class="group-header ${colorCls}">
+        <span class="group-name">${GROUP_KR[group]||group} <span style="font-size:12px;opacity:0.75;">(${group})</span></span>
+        <span class="group-badge">${totalCnt}건 · ${recs.length}명</span>
+      </div>
+      <div class="group-body">
+        ${recs.map(r => `
+          <div class="person-row" onclick="openModal('${r.name}','${r.group}')">
+            <span class="person-name">${r.name}</span>
+            <div class="person-days">
+              ${Object.entries(r.days).sort((a,b)=>parseInt(a)-parseInt(b)).map(([d,t]) =>
+                `<span class="day-tag ${t==='퇴근'?'day-out':'day-in'}">${r.month.replace('月','월')} ${d}일 ${t}</span>`
+              ).join('')}
+            </div>
+            <span class="person-total">${r.count}건</span>
+          </div>`).join('')}
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function renderListView(data) {
+  const tbody = document.getElementById('listBody');
+  if (data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:#ccc;">
+      ${Object.keys(RAW).length===0 ? '📂 엑셀 파일을 업로드하면 데이터가 표시됩니다' : '✅ 해당 조건의 미타카 기록이 없습니다'}
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(r => `
+    <tr onclick="openModal('${r.name}','${r.group}')">
+      <td><strong>${r.name}</strong></td>
+      <td>${GROUP_KR[r.group]||r.group}<br><span style="font-size:11px;color:#aaa;">${r.group}</span></td>
+      <td>${r.month.replace('月','월')}</td>
+      <td>${Object.entries(r.days).sort((a,b)=>parseInt(a)-parseInt(b)).map(([d,t])=>
+        `<span class="badge-${t==='퇴근'?'out':'in'}">${d}일 ${t}</span>`).join('')}</td>
+      <td><strong>${r.count}건</strong></td>
+    </tr>`).join('');
+}
+
+// ── 개인 상세 모달 ────────────────────────────────
+function openModal(name, group) {
+  document.getElementById('modal-name').textContent  = name;
+  document.getElementById('modal-group').textContent = `${GROUP_KR[group]||group} (${group})`;
+  const body = document.getElementById('modal-body');
+  body.innerHTML = '';
+  let hasAny = false;
+
+  Object.keys(RAW).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(month => {
+    const rec = RAW[month].find(r => r.name===name && r.group===group);
+    if (!rec || Object.keys(rec.days).length===0) return;
+    hasAny = true;
+    const inCnt  = Object.values(rec.days).filter(v=>v==='출근').length;
+    const outCnt = Object.values(rec.days).filter(v=>v==='퇴근').length;
+    const sec = document.createElement('div');
+    sec.className = 'modal-month';
+    sec.innerHTML = `
+      <div class="modal-month-title">${month.replace('月','월')} — 출근미인식 ${inCnt}건 / 퇴근미인식 ${outCnt}건</div>
+      ${Object.entries(rec.days).sort((a,b)=>parseInt(a)-parseInt(b)).map(([d,t])=>`
+        <div class="modal-day-row ${t==='퇴근'?'out':'in'}">
+          <span class="modal-day-num">${d}일</span>
+          <span class="modal-day-type">${t==='출근'?'🔵 출근 지문 미인식':'🔴 퇴근 지문 미인식'}</span>
+        </div>`).join('')}`;
+    body.appendChild(sec);
+  });
+
+  if (!hasAny) body.innerHTML = '<div style="color:#ccc;text-align:center;padding:20px;">미타카 기록 없음 ✅</div>';
+  document.getElementById('modalBg').classList.add('show');
+}
+function closeModal(e) {
+  if (e.target===document.getElementById('modalBg'))
+    document.getElementById('modalBg').classList.remove('show');
+}
+
+// ── 페이지 로드 시 자동 복원 ──────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  if (loadFromStorage()) {
+    document.getElementById('uploadSection').classList.add('has-data');
+    document.getElementById('dropHint').classList.remove('show');
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const savedTime = saved ? new Date(JSON.parse(saved).savedAt||Date.now()).toLocaleString('ko-KR') : '';
+    document.getElementById('uploadStatus').textContent =
+      `✅ 이전 데이터 복원됨 (${loadedFileNames.length}개 파일)`;
+    updateFileChips();
+    rebuildFilters();
+    render();
+  }
+});
+</script>
+</body>
+</html>
