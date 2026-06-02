@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>총괄 출퇴근 현황판 - 무석콜마</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f0f2f5;min-height:100vh;padding:24px 20px;color:#1a1a2e;}
+
+/* 상단 */
+.top-bar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+.top-title{font-size:26px;font-weight:900;color:#1a1a2e;}
+.top-sub{font-size:13px;color:#888;margin-top:3px;}
+
+/* 업로드 */
+.upload-section{background:#fff;border-radius:14px;padding:18px 20px;margin-bottom:18px;border:2px dashed #d1d5db;transition:border-color .2s;}
+.upload-section.has-data{border-style:solid;border-color:#e5e7eb;}
+.upload-section.dragover{border-color:#667eea;background:#f5f3ff;}
+.upload-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.upload-title{font-size:14px;font-weight:700;}
+.upload-sub{font-size:12px;color:#888;margin-top:2px;}
+.upload-btns{display:flex;gap:8px;align-items:center;}
+.ubtn{padding:8px 18px;border-radius:50px;border:none;cursor:pointer;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;transition:all .2s;}
+.ubtn-main{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;box-shadow:0 3px 10px rgba(102,126,234,0.4);}
+.ubtn-main:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(102,126,234,0.5);}
+.ubtn-del{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 3px 10px rgba(239,68,68,0.3);}
+.file-input{display:none;}
+.upload-hint{text-align:center;padding:16px;color:#ccc;font-size:13px;}
+.upload-status{font-size:13px;font-weight:600;color:#10b981;}
+.upload-status.err{color:#ef4444;}
+.file-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.fchip{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:#ede9fe;color:#5b21b6;font-size:12px;font-weight:700;}
+.fchip-rm{background:none;border:none;cursor:pointer;color:inherit;font-size:13px;opacity:.6;}
+.fchip-rm:hover{opacity:1;}
+
+/* 필터 */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;align-items:center;}
+.fpill{display:flex;gap:6px;align-items:center;background:#fff;border-radius:50px;padding:7px 14px;box-shadow:0 2px 8px rgba(0,0,0,0.07);}
+.flabel{font-size:12px;color:#888;font-weight:600;}
+.fsel{border:none;outline:none;font-size:13px;font-weight:700;color:#1a1a2e;background:transparent;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.search-wrap{flex:1;min-width:180px;background:#fff;border-radius:50px;padding:7px 14px;box-shadow:0 2px 8px rgba(0,0,0,0.07);display:flex;align-items:center;gap:8px;}
+.sinp{border:none;outline:none;font-size:13px;flex:1;font-family:'Noto Sans KR',sans-serif;color:#1a1a2e;}
+.sinp::placeholder{color:#ccc;}
+
+/* 요약카드 */
+.cards-row{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:18px;}
+.scard{border-radius:14px;padding:14px 12px;color:#fff;text-align:center;position:relative;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,0.12);transition:transform .2s;}
+.scard:hover{transform:translateY(-3px);}
+.scard::after{content:'';position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.12);}
+.sc1{background:linear-gradient(135deg,#3b82f6,#2563eb);}
+.sc2{background:linear-gradient(135deg,#ef4444,#dc2626);}
+.sc3{background:linear-gradient(135deg,#f59e0b,#d97706);}
+.sc4{background:linear-gradient(135deg,#f97316,#ea580c);}
+.sc5{background:linear-gradient(135deg,#6b7280,#4b5563);}
+.sc6{background:linear-gradient(135deg,#10b981,#059669);}
+.sc7{background:linear-gradient(135deg,#8b5cf6,#7c3aed);}
+.sc-label{font-size:11px;opacity:.85;font-weight:600;margin-bottom:4px;}
+.sc-num{font-size:24px;font-weight:900;line-height:1;}
+.sc-unit{font-size:10px;opacity:.8;margin-top:3px;}
+
+/* 탭 */
+.tab-wrap{background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);margin-bottom:16px;}
+.tab-group{display:flex;gap:6px;flex-wrap:wrap;}
+.tbtn{padding:7px 16px;border-radius:50px;border:none;cursor:pointer;font-size:13px;font-weight:700;transition:all .2s;font-family:'Noto Sans KR',sans-serif;background:#f0f2f5;color:#888;}
+.tbtn.active{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;box-shadow:0 3px 10px rgba(102,126,234,0.4);}
+.tbtn:hover:not(.active){background:#e5e7eb;color:#555;}
+
+/* 뷰 전환 */
+.view-row{display:flex;gap:8px;margin-bottom:14px;align-items:center;}
+.vbtn{padding:7px 16px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:#666;transition:all .15s;}
+.vbtn.active{border-color:#667eea;background:#ede9fe;color:#5b21b6;}
+.rcount{font-size:13px;color:#888;margin-left:auto;}
+
+/* 조별 탭 뷰 */
+.group-tab-wrap{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06);}
+.group-tab-nav{display:flex;flex-wrap:wrap;gap:0;padding:14px 16px;border-bottom:1px solid #f0f2f5;background:#fafafa;}
+.gtab-capsule{
+  display:flex;flex-wrap:wrap;gap:3px;
+  background:linear-gradient(135deg,#f97316 0%,#818cf8 50%,#34d399 100%);
+  border-radius:50px;padding:4px;
+  box-shadow:0 4px 16px rgba(129,140,248,0.3),inset 0 1px 2px rgba(255,255,255,0.2);
+}
+.gtab{padding:7px 14px;font-size:13px;font-weight:700;border:none;background:transparent;color:rgba(255,255,255,0.65);cursor:pointer;border-radius:46px;white-space:nowrap;font-family:'Noto Sans KR',sans-serif;transition:all .18s;}
+.gtab:hover{color:#fff;background:rgba(255,255,255,0.18);}
+.gtab.active{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);}
+.gtab-all.active{color:#667eea;}
+.gtab.active.gc-act-0{color:#667eea;}
+.gtab.active.gc-act-1{color:#f97316;}
+.gtab.active.gc-act-2{color:#06b6d4;}
+.gtab.active.gc-act-3{color:#10b981;}
+.gtab.active.gc-act-4{color:#f43f5e;}
+.gtab.active.gc-act-5{color:#8b5cf6;}
+.gtab.active.gc-act-6{color:#f59e0b;}
+.gtab.active.gc-act-7{color:#ec4899;}
+.gtab.active.gc-act-8{color:#14b8a6;}
+.gtab.active.gc-act-9{color:#6366f1;}
+.gtab.active.gc-act-10{color:#84cc16;}
+.gtab.active.gc-act-11{color:#0ea5e9;}
+.gtab.active.gc-act-12{color:#d946ef;}
+.gtab.active.gc-act-13{color:#fb923c;}
+.gtab.active.gc-act-14{color:#a78bfa;}
+.gtab-badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,0.25);color:#fff;margin-left:4px;}
+.gtab.active .gtab-badge{color:#fff;opacity:0.7;}
+
+/* 탭 패널 내부 - 가로 나열 */
+.group-panel{display:none;padding:16px;}
+.group-panel.active{display:block;}
+.panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.panel-title{font-size:16px;font-weight:800;}
+.panel-stats{display:flex;gap:10px;flex-wrap:wrap;}
+.pstat{font-size:12px;padding:3px 10px;border-radius:12px;font-weight:600;}
+.pstat-in{background:#dbeafe;color:#1d4ed8;}
+.pstat-out{background:#fee2e2;color:#dc2626;}
+.pstat-nj{background:#fef3c7;color:#b45309;}
+.pstat-bj{background:#fee2e2;color:#b91c1c;}
+.pstat-ot{background:#dcfce7;color:#15803d;}
+
+/* 사람 카드 가로 그리드 */
+.person-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.pcard{background:#f9fafb;border-radius:10px;padding:10px 12px;cursor:pointer;transition:background .15s;border:1px solid #f0f2f5;}
+.pcard:hover{background:#ede9fe;border-color:#c7d2fe;}
+.pcard-top{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.pcard-name{font-size:14px;font-weight:700;color:#1a1a2e;}
+.pcard-month{font-size:11px;color:#aaa;}
+.pcard-tags{display:flex;flex-wrap:wrap;gap:3px;}
+.tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap;}
+.t-out{background:#fee2e2;color:#dc2626;}
+.t-in{background:#dbeafe;color:#1d4ed8;}
+.t-nj{background:#fef3c7;color:#b45309;}
+.t-bj{background:#fee2e2;color:#b91c1c;}
+.t-sj{background:#f3e8ff;color:#7c3aed;}
+.t-ot{background:#dcfce7;color:#15803d;}
+.t-other{background:#f1f5f9;color:#475569;}
+.ptotal{font-size:11px;color:#999;flex-shrink:0;min-width:28px;text-align:right;}
+
+/* 리스트 뷰 */
+.list-wrap{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06);}
+.ltable{width:100%;border-collapse:collapse;}
+.ltable th{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:11px 13px;text-align:left;font-size:13px;font-weight:700;}
+.ltable th:first-child{border-radius:14px 0 0 0;}
+.ltable th:last-child{border-radius:0 14px 0 0;}
+.ltable td{padding:9px 13px;font-size:13px;border-bottom:1px solid #f0f2f5;background:#fff;}
+.ltable tr:last-child td{border-bottom:none;}
+.ltable tr:hover td{background:#f9fafb;cursor:pointer;}
+
+/* 차트 뷰 */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.ccrd{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,0.06);}
+.ctitle{font-size:14px;font-weight:700;margin-bottom:14px;color:#1a1a2e;}
+.chart-box{position:relative;height:240px;}
+
+/* 개인 상세 모달 */
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;border-radius:20px;padding:26px;width:560px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:82vh;overflow-y:auto;}
+.modal-name{font-size:20px;font-weight:900;margin-bottom:2px;}
+.modal-group{font-size:13px;color:#888;margin-bottom:18px;}
+.modal-close{float:right;background:none;border:none;font-size:20px;cursor:pointer;color:#888;}
+.modal-month{margin-bottom:16px;}
+.modal-mhd{font-size:13px;font-weight:700;color:#667eea;padding-bottom:7px;border-bottom:2px solid #ede9fe;margin-bottom:8px;}
+.modal-row{display:flex;align-items:center;padding:7px 10px;border-radius:8px;margin-bottom:3px;gap:10px;}
+.modal-row.miss-out{background:#fee2e2;}
+.modal-row.miss-in{background:#dbeafe;}
+.modal-row.leave{background:#fef3c7;}
+.modal-row.sick{background:#fee2e2;}
+.modal-row.ot{background:#dcfce7;}
+.modal-row-label{font-size:13px;font-weight:700;min-width:120px;}
+.modal-row.miss-out .modal-row-label{color:#dc2626;}
+.modal-row.miss-in  .modal-row-label{color:#1d4ed8;}
+.modal-row.leave    .modal-row-label{color:#b45309;}
+.modal-row.sick     .modal-row-label{color:#b91c1c;}
+.modal-row.ot       .modal-row-label{color:#15803d;}
+.modal-row-val{font-size:13px;color:#555;}
+
+.no-data{text-align:center;color:#ccc;padding:40px;font-size:14px;grid-column:1/-1;}
+
+/* 조 색상 */
+.gc-0{background:linear-gradient(135deg,#667eea,#764ba2);}
+.gc-1{background:linear-gradient(135deg,#f97316,#ea580c);}
+.gc-2{background:linear-gradient(135deg,#06b6d4,#0284c7);}
+.gc-3{background:linear-gradient(135deg,#10b981,#059669);}
+.gc-4{background:linear-gradient(135deg,#f43f5e,#e11d48);}
+.gc-5{background:linear-gradient(135deg,#8b5cf6,#6d28d9);}
+.gc-6{background:linear-gradient(135deg,#f59e0b,#d97706);}
+.gc-7{background:linear-gradient(135deg,#ec4899,#be185d);}
+.gc-8{background:linear-gradient(135deg,#14b8a6,#0f766e);}
+.gc-9{background:linear-gradient(135deg,#6366f1,#4338ca);}
+.gc-10{background:linear-gradient(135deg,#84cc16,#65a30d);}
+.gc-11{background:linear-gradient(135deg,#0ea5e9,#0369a1);}
+.gc-12{background:linear-gradient(135deg,#d946ef,#a21caf);}
+.gc-13{background:linear-gradient(135deg,#fb923c,#f97316);}
+.gc-14{background:linear-gradient(135deg,#a78bfa,#7c3aed);}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <div class="top-title">📋 총괄 출퇴근 현황판</div>
+    <div class="top-sub">무석콜마 · 미인식 + 휴가/병가/사가 + 야근 통합 관리</div>
+  </div>
+</div>
+
+<!-- 업로드 -->
+<div class="upload-section" id="uploadSec"
+     ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+  <div class="upload-top">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="upload-title">📂 엑셀 파일 업로드</div>
+        <span id="adminBadge" style="display:none;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;">🔑 관리자 모드</span>
+      </div>
+      <div class="upload-sub">미인식 기록표 + 휴가야근 통계표 xlsx 업로드 · 여러 파일 동시 가능 · 드래그&드롭 지원</div>
+    </div>
+    <div class="upload-btns">
+      <span class="upload-status" id="upStatus"></span>
+      <button class="ubtn" id="adminLoginBtn" onclick="toggleAdminLogin()" style="background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff;box-shadow:0 3px 10px rgba(100,116,139,0.3);">🔑 관리자</button>
+      <button class="ubtn ubtn-del" id="btnClearAll" onclick="clearAll()" style="display:none;">🗑️ 전체 삭제</button>
+      <button class="ubtn ubtn-main" id="btnFileSelect" onclick="document.getElementById('fileInp').click()" style="display:none;">📁 파일 선택</button>
+      <input type="file" id="fileInp" class="file-input" accept=".xlsx,.xls" multiple onchange="onFileSelect(event)">
+    </div>
+  </div>
+  <div id="dropHint" class="upload-hint">📄 여기에 엑셀 파일을 드래그하여 놓으세요</div>
+  <div class="file-chips" id="fileChips"></div>
+  <!-- Supabase 저장 버튼 (파일 업로드 후 표시) -->
+  <div id="sbSaveBtn" style="display:none;margin-top:14px;">
+    <button onclick="saveToSupabase()" style="width:100%;padding:12px;border-radius:10px;border:none;cursor:pointer;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;box-shadow:0 4px 14px rgba(102,126,234,0.4);">
+      ☁️ Supabase에 저장하기 — 저장하면 모든 사람이 바로 볼 수 있어요
+    </button>
+  </div>
+</div>
+
+<!-- 필터 -->
+<div class="filter-bar">
+  <div class="fpill"><span class="flabel">연도</span><select class="fsel" id="yearSel" onchange="onYearChange()"><option value="all">전체</option></select></div>
+  <div class="fpill"><span class="flabel">월</span><select class="fsel" id="monthSel" onchange="render()"><option value="all">전체</option></select></div>
+  <div class="fpill"><span class="flabel">조</span><select class="fsel" id="groupSel" onchange="render()"><option value="all">전체</option></select></div>
+  <div class="fpill"><span class="flabel">유형</span>
+    <select class="fsel" id="typeSel" onchange="render()">
+      <option value="all">전체</option>
+      <option value="miss">미인식</option>
+      <option value="nj">연차</option>
+      <option value="bj">병가</option>
+      <option value="sj">사가</option>
+      <option value="ot">야근</option>
+    </select>
+  </div>
+  <div class="search-wrap">
+    <span style="color:#ccc;">🔍</span>
+    <input class="sinp" id="searchInp" placeholder="이름 검색..." oninput="render()">
+  </div>
+</div>
+
+<!-- 요약 카드 -->
+<div class="cards-row">
+  <div class="scard sc1"><div class="sc-label">출근 미인식</div><div class="sc-num" id="s-in">0</div><div class="sc-unit">건</div></div>
+  <div class="scard sc2"><div class="sc-label">퇴근 미인식</div><div class="sc-num" id="s-out">0</div><div class="sc-unit">건</div></div>
+  <div class="scard sc3"><div class="sc-label">연차</div><div class="sc-num" id="s-nj">0</div><div class="sc-unit">일</div></div>
+  <div class="scard sc4"><div class="sc-label">병가</div><div class="sc-num" id="s-bj">0</div><div class="sc-unit">일</div></div>
+  <div class="scard sc5"><div class="sc-label">사가·기타</div><div class="sc-num" id="s-sj">0</div><div class="sc-unit">일</div></div>
+  <div class="scard sc6"><div class="sc-label">평일 야근</div><div class="sc-num" id="s-otw">0</div><div class="sc-unit">h</div></div>
+  <div class="scard sc7"><div class="sc-label">주말 야근</div><div class="sc-num" id="s-otwe">0</div><div class="sc-unit">h</div></div>
+</div>
+
+<!-- 월 탭 -->
+<div class="tab-wrap">
+  <div class="tab-group" id="monthTabs">
+    <button class="tbtn active" onclick="setMonthTab('all',this)">전체</button>
+  </div>
+</div>
+
+<!-- 뷰 전환 -->
+<div class="view-row">
+  <button class="vbtn active" id="vb-group" onclick="setView('group')">🏢 조별 보기</button>
+  <button class="vbtn" id="vb-list"  onclick="setView('list')">📋 리스트 보기</button>
+  <button class="vbtn" id="vb-chart" onclick="setView('chart')">📊 차트 보기</button>
+  <span class="rcount" id="rcount"></span>
+</div>
+
+<!-- 조별 뷰 -->
+<div id="view-group">
+  <div class="group-tab-wrap">
+    <div class="group-tab-nav" id="groupTabNav">
+      <div class="gtab-capsule" id="groupTabCapsule"></div>
+    </div>
+    <div id="groupPanels"></div>
+  </div>
+</div>
+
+<!-- 리스트 뷰 -->
+<div id="view-list" style="display:none;">
+  <div class="list-wrap">
+    <table class="ltable">
+      <thead><tr><th>이름</th><th>조</th><th>출근미인식</th><th>퇴근미인식</th><th>연차(일)</th><th>병가(일)</th><th>사가(일)</th><th>야근(h)</th><th>월별 내역</th></tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 차트 뷰 -->
+<div id="view-chart" style="display:none;">
+  <div class="chart-grid">
+    <div class="ccrd"><div class="ctitle">조별 야근 시간 합계 (상위 10)</div><div class="chart-box"><canvas id="chartOT"></canvas></div></div>
+    <div class="ccrd"><div class="ctitle">월별 휴가 유형 분포</div><div class="chart-box"><canvas id="chartLeave"></canvas></div></div>
+    <div class="ccrd"><div class="ctitle">조별 미인식 건수</div><div class="chart-box"><canvas id="chartMiss"></canvas></div></div>
+    <div class="ccrd"><div class="ctitle">월별 야근 추이</div><div class="chart-box"><canvas id="chartOTTrend"></canvas></div></div>
+  </div>
+</div>
+
+<!-- 개인 상세 모달 -->
+<div class="modal-bg" id="modalBg" onclick="closeModal(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('modalBg').classList.remove('show')">✕</button>
+    <div class="modal-name" id="mname"></div>
+    <div class="modal-group" id="mgroup"></div>
+    <div id="mbody"></div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'museok_hr_v1';
+const SB_URL  = 'https://aaaabocpzmwivizcoexj.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhYWFib2Nwem13aXZpemNvZXhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4Mjc0MjgsImV4cCI6MjA5MjQwMzQyOH0.GEIET5Pp5C22uUPUpj0hqdki4ERcsOonr8iv9UXW5A4';
+const SB_HDR  = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+const ADMIN_PW = 'admin1234';
+let isAdmin = false;
+const GROUP_COLORS = ['gc-0','gc-1','gc-2','gc-3','gc-4','gc-5','gc-6','gc-7','gc-8','gc-9','gc-10','gc-11','gc-12','gc-13','gc-14'];
+const gcMap = {}; let gcIdx = 0;
+function gc(g){ if(!gcMap[g]) gcMap[g]=GROUP_COLORS[gcIdx++%GROUP_COLORS.length]; return gcMap[g]; }
+
+let RAW = {};        // {월: [{name,group,nj,bj,sj,other,ot_weekday,ot_weekend,ot_total,days,miss_count}]}
+let fileNames = [];
+let curMonth = 'all';
+let curView = 'group';
+let charts = {};
+
+// ── 파싱 ──────────────────────────────────────────
+function parseFile(ab, fname) {
+  const wb = XLSX.read(ab, {type:'array'});
+  const result = { type: null, data: {} };
+
+  wb.SheetNames.forEach(sn => {
+    const ws = wb.Sheets[sn];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if (rows.length < 2) return;
+
+    // 미인식 파일 감지 (序号 컬럼)
+    let hdr = rows.findIndex(r => String(r[0]).includes('序号'));
+    if (hdr >= 0) {
+      result.type = 'attend';
+      const raw = sn.trim();
+      const num = raw.replace('月','').padStart(2,'0');
+      const key = num + '月';
+      const recs = [];
+      for (let i=hdr+1;i<rows.length;i++) {
+        const r = rows[i];
+        if (!r[0]||isNaN(parseInt(r[0]))) continue;
+        const name  = String(r[1]||'').trim();
+        const group = String(r[5]||'').trim();
+        if (!name||!group) continue;
+        const days = {};
+        for (let d=0;d<31;d++) {
+          const v = String(r[6+d]||'').trim();
+          if (v==='출근'||v==='퇴근') days[String(d+1)]=v;
+        }
+        recs.push({name,group,days,miss_count:Object.keys(days).length,
+          nj:0,bj:0,sj:0,other:0,ot_weekday:0,ot_weekend:0,ot_total:0});
+      }
+      if (recs.length) result.data[key] = recs;
+      return;
+    }
+
+    // 휴가/야근 파일 감지 (NO 컬럼)
+    hdr = rows.findIndex(r => String(r[0]).trim()==='NO');
+    if (hdr >= 0) {
+      result.type = 'leave';
+      const m = sn.match(/(\d{2})月/);
+      if (!m) return;
+      const key = m[1] + '月';
+      const recs = [];
+      for (let i=hdr+1;i<rows.length;i++) {
+        const r = rows[i];
+        if (!r[0]||isNaN(parseInt(r[0]))) continue;
+        const group = String(r[1]||'').trim();
+        const name  = String(r[2]||'').trim();
+        if (!name) continue;
+        recs.push({name,group,
+          sj:  parseFloat(r[3]||0),
+          nj:  parseFloat(r[4]||0),
+          bj:  parseFloat(r[5]||0),
+          other: parseFloat(r[6]||0),
+          ot_weekday: parseFloat(r[7]||0),
+          ot_weekend: parseFloat(r[8]||0),
+          ot_total:   parseFloat(r[9]||0),
+          days:{}, miss_count:0
+        });
+      }
+      if (recs.length) result.data[key] = recs;
+    }
+  });
+  return result;
+}
+
+function mergeInto(parsed) {
+  Object.entries(parsed.data).forEach(([month, recs]) => {
+    if (!RAW[month]) RAW[month] = {};
+    recs.forEach(r => {
+      if (!RAW[month][r.name]) {
+        RAW[month][r.name] = {...r};
+      } else {
+        const e = RAW[month][r.name];
+        if (parsed.type === 'attend') {
+          e.days = r.days; e.miss_count = r.miss_count;
+        } else {
+          e.nj = r.nj; e.bj = r.bj; e.sj = r.sj; e.other = r.other;
+          e.ot_weekday = r.ot_weekday; e.ot_weekend = r.ot_weekend; e.ot_total = r.ot_total;
+          if (!e.group || e.group === '') e.group = r.group;
+        }
+      }
+    });
+  });
+}
+
+function getRaw() {
+  const out = {};
+  Object.entries(RAW).forEach(([m,people]) => {
+    out[m] = Object.values(people);
+  });
+  return out;
+}
+
+// ── 업로드 ────────────────────────────────────────
+async function processFiles(files) {
+  const st = document.getElementById('upStatus');
+  st.className='upload-status'; st.textContent='읽는 중...';
+  let loaded=0;
+  for (const f of files) {
+    if (!f.name.match(/\.xlsx?$/i)) continue;
+    try {
+      const ab = await f.arrayBuffer();
+      const parsed = parseFile(ab, f.name);
+      mergeInto(parsed);
+      if (!fileNames.includes(f.name)) fileNames.push(f.name);
+      loaded++;
+    } catch(e) { console.error(f.name,e); }
+  }
+  if (loaded>0) {
+    st.textContent=`✅ ${loaded}개 파일 로드 완료 — Supabase에 저장하려면 아래 버튼을 클릭하세요`;
+    document.getElementById('uploadSec').classList.add('has-data');
+    document.getElementById('dropHint').style.display='none';
+    document.getElementById('sbSaveBtn').style.display='';
+    saveStorage(); updateChips(); rebuildFilters(); render();
+  } else { st.className='upload-status err'; st.textContent='❌ 유효한 파일 없음'; }
+}
+function onFileSelect(e){ processFiles(e.target.files); e.target.value=''; }
+function onDragOver(e){ e.preventDefault(); document.getElementById('uploadSec').classList.add('dragover'); }
+function onDragLeave(){ document.getElementById('uploadSec').classList.remove('dragover'); }
+function onDrop(e){ e.preventDefault(); document.getElementById('uploadSec').classList.remove('dragover'); processFiles(e.dataTransfer.files); }
+
+function clearAll(){
+  if(!confirm('저장된 데이터를 모두 삭제할까요?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  RAW={}; fileNames=[];
+  document.getElementById('uploadSec').classList.remove('has-data');
+  document.getElementById('dropHint').style.display='';
+  document.getElementById('upStatus').textContent='';
+  updateChips(); rebuildFilters(); render();
+}
+
+function updateChips(){
+  document.getElementById('fileChips').innerHTML = fileNames.map((f,i)=>
+    `<div class="fchip">📄 ${f} <button class="fchip-rm" onclick="removeFile(${i})">✕</button></div>`
+  ).join('');
+}
+function removeFile(i){
+  fileNames.splice(i,1); RAW={};
+  if(fileNames.length===0){ document.getElementById('uploadSec').classList.remove('has-data'); document.getElementById('dropHint').style.display=''; document.getElementById('upStatus').textContent=''; }
+  else { document.getElementById('upStatus').className='upload-status err'; document.getElementById('upStatus').textContent='파일을 다시 선택해주세요'; }
+  saveStorage(); updateChips(); rebuildFilters(); render();
+}
+
+// ── 관리자 로그인 ─────────────────────────────────
+function toggleAdminLogin(){
+  if(isAdmin){ logoutAdmin(); return; }
+  const pw = prompt('관리자 비밀번호를 입력하세요:');
+  if(pw === ADMIN_PW){
+    isAdmin = true;
+    document.getElementById('adminBadge').style.display='inline-block';
+    document.getElementById('adminLoginBtn').textContent='🔑 로그아웃';
+    document.getElementById('adminLoginBtn').style.background='linear-gradient(135deg,#667eea,#764ba2)';
+    document.getElementById('btnClearAll').style.display='';
+    document.getElementById('btnFileSelect').style.display='';
+    document.getElementById('upStatus').textContent='✅ 관리자 모드 활성화';
+    document.getElementById('upStatus').className='upload-status';
+  } else {
+    alert('비밀번호가 틀렸습니다.');
+  }
+}
+function logoutAdmin(){
+  isAdmin=false;
+  document.getElementById('adminBadge').style.display='none';
+  document.getElementById('adminLoginBtn').textContent='🔑 관리자';
+  document.getElementById('adminLoginBtn').style.background='linear-gradient(135deg,#94a3b8,#64748b)';
+  document.getElementById('btnClearAll').style.display='none';
+  document.getElementById('btnFileSelect').style.display='none';
+  document.getElementById('upStatus').textContent='';
+}
+
+// ── Supabase 저장 ─────────────────────────────────
+async function saveToSupabase(){
+  const raw = getRaw();
+  const rows = [];
+  Object.entries(raw).forEach(([month, recs])=>{
+    const year = fileNames.map(f=>{ const m=f.match(/(\d{4})/); return m?m[1]:null; }).find(Boolean) || new Date().getFullYear().toString();
+    recs.forEach(r=>{
+      const inCnt  = Object.values(r.days||{}).filter(v=>v==='출근').length;
+      const outCnt = Object.values(r.days||{}).filter(v=>v==='퇴근').length;
+      rows.push({
+        year, month,
+        name: r.name, group: r.group,
+        nj: r.nj||0, bj: r.bj||0, sj: r.sj||0, other: r.other||0,
+        ot_weekday: r.ot_weekday||0, ot_weekend: r.ot_weekend||0, ot_total: r.ot_total||0,
+        miss_in: inCnt, miss_out: outCnt,
+        miss_days: r.days||{}
+      });
+    });
+  });
+
+  if(!rows.length){ showToast('저장할 데이터가 없습니다.'); return; }
+
+  const st = document.getElementById('upStatus');
+  st.className='upload-status'; st.textContent='Supabase에 저장 중...';
+
+  try {
+    // 기존 데이터 삭제 후 새로 삽입 (upsert)
+    const years = [...new Set(rows.map(r=>r.year))];
+    const months = [...new Set(rows.map(r=>r.month))];
+    for(const y of years){
+      for(const m of months){
+        await fetch(`${SB_URL}/rest/v1/hr_records?year=eq.${y}&month=eq.${m}`,{
+          method:'DELETE', headers:{...SB_HDR,'Prefer':'return=minimal'}
+        });
+      }
+    }
+    // 500개씩 나눠서 삽입
+    const CHUNK = 500;
+    for(let i=0;i<rows.length;i+=CHUNK){
+      const res = await fetch(`${SB_URL}/rest/v1/hr_records`,{
+        method:'POST',
+        headers:{...SB_HDR,'Prefer':'return=minimal'},
+        body: JSON.stringify(rows.slice(i,i+CHUNK))
+      });
+      if(!res.ok){ const err=await res.text(); throw new Error(err); }
+    }
+    st.textContent=`✅ Supabase 저장 완료 (${rows.length}건)`;
+    showToast(`✅ ${rows.length}건 저장 완료! 다른 사람들도 바로 볼 수 있어요.`);
+  } catch(e){
+    st.className='upload-status err';
+    st.textContent='❌ 저장 실패: '+e.message;
+    console.error(e);
+  }
+}
+
+// ── Supabase 불러오기 ─────────────────────────────
+async function loadFromSupabase(){
+  const st = document.getElementById('upStatus');
+  st.className='upload-status'; st.textContent='데이터 불러오는 중...';
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/hr_records?select=*&order=month.asc`,{
+      headers: SB_HDR
+    });
+    if(!res.ok) throw new Error(await res.text());
+    const rows = await res.json();
+    if(!rows.length){
+      st.textContent=''; return false;
+    }
+    // RAW 재구성
+    RAW = {};
+    rows.forEach(r=>{
+      if(!RAW[r.month]) RAW[r.month]={};
+      RAW[r.month][r.name] = {
+        name: r.name, group: r.group,
+        nj: r.nj||0, bj: r.bj||0, sj: r.sj||0, other: r.other||0,
+        ot_weekday: r.ot_weekday||0, ot_weekend: r.ot_weekend||0, ot_total: r.ot_total||0,
+        days: r.miss_days||{}, miss_count: (r.miss_in||0)+(r.miss_out||0)
+      };
+    });
+    const years = [...new Set(rows.map(r=>r.year))];
+    fileNames = years.map(y=>`${y}年 데이터`);
+    st.textContent=`✅ 최신 데이터 로드됨 (${rows.length}건)`;
+    return true;
+  } catch(e){
+    st.className='upload-status err';
+    st.textContent='❌ 불러오기 실패 (오프라인이거나 테이블 미생성)';
+    console.error(e);
+    return false;
+  }
+}
+
+// ── localStorage (로컬 백업용) ────────────────────
+function saveStorage(){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify({RAW,fileNames})); }catch(e){} }
+function loadStorage(){
+  try{
+    const s=localStorage.getItem(STORAGE_KEY);
+    if(!s) return false;
+    const d=JSON.parse(s);
+    if(!d.RAW||Object.keys(d.RAW).length===0) return false;
+    RAW=d.RAW; fileNames=d.fileNames||[];
+    return true;
+  }catch(e){ return false; }
+}
+
+// ── 필터 재구성 ───────────────────────────────────
+function rebuildFilters(){
+  const raw = getRaw();
+  // 연도 추출 (파일명에서)
+  const years = [...new Set(fileNames.map(f=>{ const m=f.match(/(\d{4})/); return m?m[1]:null; }).filter(Boolean))].sort();
+  const yearSel = document.getElementById('yearSel');
+  yearSel.innerHTML='<option value="all">전체</option>'+years.map(y=>`<option value="${y}">${y}년</option>`).join('');
+  if(years.length===1) yearSel.value=years[0];
+
+  const months = Object.keys(raw).sort((a,b)=>parseInt(a)-parseInt(b));
+  const groups = [...new Set(Object.values(raw).flat().map(r=>r.group))].filter(Boolean).sort();
+
+  document.getElementById('monthSel').innerHTML='<option value="all">전체</option>'+
+    months.map(m=>`<option value="${m}">${m.replace('月','월')}</option>`).join('');
+  document.getElementById('groupSel').innerHTML='<option value="all">전체</option>'+
+    groups.map(g=>`<option value="${g}">${g}</option>`).join('');
+
+  const tabs=document.getElementById('monthTabs');
+  tabs.innerHTML='<button class="tbtn active" onclick="setMonthTab(\'all\',this)">전체</button>'+
+    months.map(m=>`<button class="tbtn" onclick="setMonthTab(\'${m}\',this)">${m.replace('月','월')}</button>`).join('');
+}
+
+function onYearChange(){ render(); }
+
+function setMonthTab(m,btn){
+  curMonth=m;
+  document.querySelectorAll('#monthTabs .tbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('monthSel').value=m;
+  render();
+}
+
+// ── 이름별 통합 필터링 ────────────────────────────
+// 반환값: [{name, group, totalIn, totalOut, totalNj, ... , months:[{month,...}]}]
+function getFiltered(){
+  const raw=getRaw();
+  const sm=document.getElementById('monthSel').value;
+  const sg=document.getElementById('groupSel').value;
+  const st=document.getElementById('typeSel').value;
+  const ss=document.getElementById('searchInp').value.trim();
+  const months = sm==='all'?Object.keys(raw).sort((a,b)=>parseInt(a)-parseInt(b)):[sm];
+
+  const merged={};
+  months.forEach(m=>{
+    (raw[m]||[]).forEach(r=>{
+      if(sg!=='all'&&r.group!==sg) return;
+      if(ss&&!r.name.includes(ss)) return;
+      const key=r.name+'||'+r.group;
+      if(!merged[key]) merged[key]={name:r.name,group:r.group,months:[],
+        totalIn:0,totalOut:0,totalNj:0,totalBj:0,totalSj:0,totalOther:0,totalOtW:0,totalOtWe:0,totalOt:0};
+      const inCnt=Object.values(r.days||{}).filter(v=>v==='출근').length;
+      const outCnt=Object.values(r.days||{}).filter(v=>v==='퇴근').length;
+      merged[key].totalIn+=inCnt;
+      merged[key].totalOut+=outCnt;
+      merged[key].totalNj+=r.nj||0;
+      merged[key].totalBj+=r.bj||0;
+      merged[key].totalSj+=r.sj||0;
+      merged[key].totalOther+=r.other||0;
+      merged[key].totalOtW+=r.ot_weekday||0;
+      merged[key].totalOtWe+=r.ot_weekend||0;
+      merged[key].totalOt+=r.ot_total||0;
+      if(inCnt+outCnt+(r.nj||0)+(r.bj||0)+(r.sj||0)+(r.other||0)+(r.ot_total||0)>0)
+        merged[key].months.push({month:m,inCnt,outCnt,
+          nj:r.nj||0,bj:r.bj||0,sj:r.sj||0,other:r.other||0,
+          ot_weekday:r.ot_weekday||0,ot_weekend:r.ot_weekend||0,ot_total:r.ot_total||0,days:r.days||{}});
+    });
+  });
+
+  return Object.values(merged).filter(r=>{
+    const total=r.totalIn+r.totalOut+r.totalNj+r.totalBj+r.totalSj+r.totalOther+r.totalOt;
+    if(total===0) return false;
+    if(st==='miss'&&r.totalIn+r.totalOut===0) return false;
+    if(st==='nj'&&r.totalNj===0) return false;
+    if(st==='bj'&&r.totalBj===0) return false;
+    if(st==='sj'&&r.totalSj+r.totalOther===0) return false;
+    if(st==='ot'&&r.totalOt===0) return false;
+    return true;
+  });
+}
+
+function setView(v){
+  curView=v;
+  ['group','list','chart'].forEach(x=>{
+    document.getElementById('vb-'+x).classList.toggle('active',x===v);
+    document.getElementById('view-'+x).style.display=x===v?'':'none';
+  });
+  if(v==='chart') renderCharts();
+  else render();
+}
+
+// ── 렌더 ──────────────────────────────────────────
+function render(){
+  const data=getFiltered();
+  let sIn=0,sOut=0,sNj=0,sBj=0,sSj=0,sOtW=0,sOtWe=0;
+  data.forEach(r=>{
+    sIn+=r.totalIn; sOut+=r.totalOut;
+    sNj+=r.totalNj; sBj+=r.totalBj;
+    sSj+=r.totalSj+r.totalOther;
+    sOtW+=r.totalOtW; sOtWe+=r.totalOtWe;
+  });
+  document.getElementById('s-in').textContent=sIn;
+  document.getElementById('s-out').textContent=sOut;
+  document.getElementById('s-nj').textContent=sNj.toFixed(1).replace('.0','');
+  document.getElementById('s-bj').textContent=sBj.toFixed(1).replace('.0','');
+  document.getElementById('s-sj').textContent=sSj.toFixed(1).replace('.0','');
+  document.getElementById('s-otw').textContent=sOtW.toFixed(1).replace('.0','');
+  document.getElementById('s-otwe').textContent=sOtWe.toFixed(1).replace('.0','');
+  document.getElementById('rcount').textContent=`총 ${data.length}명`;
+  if(curView==='group') renderGroup(data);
+  else if(curView==='list') renderList(data);
+  else renderCharts();
+}
+
+let activeGroupTab = null;
+
+function renderGroup(data){
+  const byG={};
+  data.forEach(r=>{ if(!byG[r.group]) byG[r.group]=[]; byG[r.group].push(r); });
+  const groups = Object.keys(byG).sort();
+  const capsule = document.getElementById('groupTabCapsule');
+  const panels  = document.getElementById('groupPanels');
+  capsule.innerHTML=''; panels.innerHTML='';
+
+  if(!groups.length){
+    panels.innerHTML=`<div class="no-data" style="padding:40px;">${Object.keys(RAW).length?'✅ 해당 조건의 기록이 없습니다':'📂 엑셀 파일을 업로드하면 데이터가 표시됩니다'}</div>`;
+    return;
+  }
+  if(!groups.includes(activeGroupTab)) activeGroupTab='__all__';
+
+  // ── 전체 탭 ──
+  const allBtn=document.createElement('button');
+  allBtn.className=`gtab gtab-all${activeGroupTab==='__all__'?' active':''}`;
+  allBtn.innerHTML=`전체 <span class="gtab-badge">${data.length}</span>`;
+  allBtn.onclick=()=>{ activeGroupTab='__all__'; renderGroup(data); };
+  capsule.appendChild(allBtn);
+
+  // ── 조별 탭 ──
+  groups.forEach((g,idx)=>{
+    const recs=byG[g];
+    const colorIdx=GROUP_COLORS.indexOf(gc(g));
+    const ci=colorIdx>=0?colorIdx:idx%15;
+    const btn=document.createElement('button');
+    btn.className=`gtab gc-act-${ci}${g===activeGroupTab?' active':''}`;
+    btn.innerHTML=`${g} <span class="gtab-badge">${recs.length}</span>`;
+    btn.onclick=()=>{ activeGroupTab=g; renderGroup(data); };
+    capsule.appendChild(btn);
+  });
+
+  // ── 전체 패널 ──
+  const allPanel=document.createElement('div');
+  allPanel.className=`group-panel${activeGroupTab==='__all__'?' active':''}`;
+  const inT=data.reduce((a,r)=>a+r.totalIn,0);
+  const outT=data.reduce((a,r)=>a+r.totalOut,0);
+  const njT=data.reduce((a,r)=>a+r.totalNj,0);
+  const bjT=data.reduce((a,r)=>a+r.totalBj,0);
+  const otT=data.reduce((a,r)=>a+r.totalOt,0);
+  allPanel.innerHTML=`
+    <div class="panel-header">
+      <span class="panel-title">전체 <span style="font-size:13px;color:#999;font-weight:500;">${data.length}명</span></span>
+      <div class="panel-stats">
+        ${inT?`<span class="pstat pstat-in">출근미인식 ${inT}건</span>`:''}
+        ${outT?`<span class="pstat pstat-out">퇴근미인식 ${outT}건</span>`:''}
+        ${njT?`<span class="pstat pstat-nj">연차 ${njT}일</span>`:''}
+        ${bjT?`<span class="pstat pstat-bj">병가 ${bjT}일</span>`:''}
+        ${otT?`<span class="pstat pstat-ot">야근 ${otT}h</span>`:''}
+      </div>
+    </div>
+    <div class="person-grid">
+      ${data.map(r=>personCardHTML(r)).join('')}
+    </div>`;
+  panels.appendChild(allPanel);
+
+  // ── 조별 패널 ──
+  groups.forEach((g,idx)=>{
+    const recs=byG[g];
+    const colorIdx=GROUP_COLORS.indexOf(gc(g));
+    const ci=colorIdx>=0?colorIdx:idx%15;
+    const panel=document.createElement('div');
+    panel.className=`group-panel${g===activeGroupTab?' active':''}`;
+    const iT=recs.reduce((a,r)=>a+r.totalIn,0);
+    const oT=recs.reduce((a,r)=>a+r.totalOut,0);
+    const nT=recs.reduce((a,r)=>a+r.totalNj,0);
+    const bT=recs.reduce((a,r)=>a+r.totalBj,0);
+    const tT=recs.reduce((a,r)=>a+r.totalOt,0);
+    panel.innerHTML=`
+      <div class="panel-header">
+        <span class="panel-title" style="color:var(--gc${ci})">${g} <span style="font-size:13px;color:#999;font-weight:500;">${recs.length}명</span></span>
+        <div class="panel-stats">
+          ${iT?`<span class="pstat pstat-in">출근미인식 ${iT}건</span>`:''}
+          ${oT?`<span class="pstat pstat-out">퇴근미인식 ${oT}건</span>`:''}
+          ${nT?`<span class="pstat pstat-nj">연차 ${nT}일</span>`:''}
+          ${bT?`<span class="pstat pstat-bj">병가 ${bT}일</span>`:''}
+          ${tT?`<span class="pstat pstat-ot">야근 ${tT}h</span>`:''}
+        </div>
+      </div>
+      <div class="person-grid">
+        ${recs.map(r=>personCardHTML(r)).join('')}
+      </div>`;
+    panels.appendChild(panel);
+  });
+}
+
+function personCardHTML(r){
+  return `<div class="pcard" onclick="openModal('${r.name}','${r.group}')">
+    <div class="pcard-top">
+      <span class="pcard-name">${r.name}</span>
+      <span class="pcard-month">${r.months.map(m=>m.month.replace('月','월')).join('·')}</span>
+    </div>
+    <div class="pcard-tags">
+      ${r.totalIn?`<span class="tag t-in">출근미인식 ${r.totalIn}건</span>`:''}
+      ${r.totalOut?`<span class="tag t-out">퇴근미인식 ${r.totalOut}건</span>`:''}
+      ${r.totalNj?`<span class="tag t-nj">연차 ${r.totalNj}일</span>`:''}
+      ${r.totalBj?`<span class="tag t-bj">병가 ${r.totalBj}일</span>`:''}
+      ${r.totalSj?`<span class="tag t-sj">사가 ${r.totalSj}일</span>`:''}
+      ${r.totalOther?`<span class="tag t-other">기타 ${r.totalOther}일</span>`:''}
+      ${r.totalOt?`<span class="tag t-ot">야근 ${r.totalOt}h</span>`:''}
+    </div>
+  </div>`;
+}
+
+function renderList(data){
+  document.getElementById('listBody').innerHTML = data.length
+    ? data.map(r=>`
+        <tr onclick="openModal('${r.name}','${r.group}')">
+          <td><strong>${r.name}</strong></td>
+          <td style="font-size:12px;">${r.group}</td>
+          <td style="text-align:center;">${r.totalIn||'-'}</td>
+          <td style="text-align:center;">${r.totalOut||'-'}</td>
+          <td style="text-align:center;">${r.totalNj||'-'}</td>
+          <td style="text-align:center;">${r.totalBj||'-'}</td>
+          <td style="text-align:center;">${(r.totalSj+r.totalOther)||'-'}</td>
+          <td style="text-align:center;">${r.totalOt||'-'}</td>
+          <td style="font-size:11px;color:#999;">${r.months.map(m=>m.month.replace('月','월')).join(', ')}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="9" style="text-align:center;padding:30px;color:#ccc;">해당 기록 없음</td></tr>`;
+}
+
+function renderCharts(){
+  const data=getFiltered();
+  const raw=getRaw();
+  const months=Object.keys(raw).sort((a,b)=>parseInt(a)-parseInt(b));
+
+  const otByG={};
+  data.forEach(r=>{ if(!otByG[r.group]) otByG[r.group]=0; otByG[r.group]+=r.totalOt||0; });
+  const otSorted=Object.entries(otByG).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  drawChart('chartOT','bar',otSorted.map(x=>x[0]),
+    [{label:'야근(h)',data:otSorted.map(x=>x[1]),backgroundColor:'rgba(16,185,129,0.8)',borderRadius:6}],
+    {indexAxis:'y',plugins:{legend:{display:false}}});
+
+  const njArr=[],bjArr=[],sjArr=[];
+  months.forEach(m=>{
+    const recs=(raw[m]||[]);
+    njArr.push(recs.reduce((a,r)=>a+(r.nj||0),0));
+    bjArr.push(recs.reduce((a,r)=>a+(r.bj||0),0));
+    sjArr.push(recs.reduce((a,r)=>a+(r.sj||0)+(r.other||0),0));
+  });
+  drawChart('chartLeave','bar',months.map(m=>m.replace('月','월')),[
+    {label:'연차',data:njArr,backgroundColor:'rgba(245,158,11,0.8)',borderRadius:4},
+    {label:'병가',data:bjArr,backgroundColor:'rgba(239,68,68,0.8)',borderRadius:4},
+    {label:'사가·기타',data:sjArr,backgroundColor:'rgba(139,92,246,0.8)',borderRadius:4},
+  ],{plugins:{legend:{position:'top'}}});
+
+  const missG={};
+  data.forEach(r=>{ if(!missG[r.group]) missG[r.group]={in:0,out:0};
+    missG[r.group].in+=r.totalIn||0; missG[r.group].out+=r.totalOut||0; });
+  const missSorted=Object.entries(missG).sort((a,b)=>(b[1].in+b[1].out)-(a[1].in+a[1].out)).slice(0,10);
+  drawChart('chartMiss','bar',missSorted.map(x=>x[0]),[
+    {label:'출근미인식',data:missSorted.map(x=>x[1].in),backgroundColor:'rgba(59,130,246,0.8)',borderRadius:4},
+    {label:'퇴근미인식',data:missSorted.map(x=>x[1].out),backgroundColor:'rgba(239,68,68,0.8)',borderRadius:4},
+  ],{plugins:{legend:{position:'top'}}});
+
+  const otTrend=months.map(m=>(raw[m]||[]).reduce((a,r)=>a+(r.ot_total||0),0));
+  drawChart('chartOTTrend','line',months.map(m=>m.replace('月','월')),[
+    {label:'야근 합계(h)',data:otTrend,borderColor:'rgba(139,92,246,1)',backgroundColor:'rgba(139,92,246,0.1)',fill:true,tension:0.4,pointRadius:5}
+  ],{plugins:{legend:{display:false}}});
+}
+
+function drawChart(id,type,labels,datasets,extraOpts){
+  if(charts[id]){ charts[id].destroy(); delete charts[id]; }
+  const ctx=document.getElementById(id)?.getContext('2d');
+  if(!ctx) return;
+  charts[id]=new Chart(ctx,{type,data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:11},padding:12}}},
+    scales:{x:{grid:{color:'rgba(0,0,0,0.04)'}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:11}}}},
+    ...extraOpts
+  }});
+}
+
+// ── 개인 상세 (통합 데이터 기반) ────────────────────
+function openModal(name,group){
+  document.getElementById('mname').textContent=name;
+  document.getElementById('mgroup').textContent=group;
+  const raw=getRaw();
+  const body=document.getElementById('mbody'); body.innerHTML='';
+  let any=false;
+  Object.keys(raw).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(m=>{
+    const r=raw[m]?.find(x=>x.name===name&&x.group===group);
+    if(!r) return;
+    const inCnt=Object.values(r.days||{}).filter(v=>v==='출근').length;
+    const outCnt=Object.values(r.days||{}).filter(v=>v==='퇴근').length;
+    if(inCnt+outCnt+(r.nj||0)+(r.bj||0)+(r.sj||0)+(r.other||0)+(r.ot_total||0)===0) return;
+    any=true;
+    const sec=document.createElement('div'); sec.className='modal-month';
+    let html=`<div class="modal-mhd">${m.replace('月','월')}</div>`;
+    Object.entries(r.days||{}).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(([d,t])=>{
+      html+=`<div class="modal-row ${t==='퇴근'?'miss-out':'miss-in'}">
+        <span class="modal-row-label">${d}일 ${t==='출근'?'🔵 출근 지문 미인식':'🔴 퇴근 지문 미인식'}</span></div>`;
+    });
+    if(r.nj)    html+=`<div class="modal-row leave"><span class="modal-row-label">🟡 연차</span><span class="modal-row-val">${r.nj}일</span></div>`;
+    if(r.bj)    html+=`<div class="modal-row sick"><span class="modal-row-label">🔴 병가</span><span class="modal-row-val">${r.bj}일</span></div>`;
+    if(r.sj)    html+=`<div class="modal-row" style="background:#f3e8ff;"><span class="modal-row-label" style="color:#7c3aed;">🟣 사가</span><span class="modal-row-val">${r.sj}일</span></div>`;
+    if(r.other) html+=`<div class="modal-row" style="background:#f1f5f9;"><span class="modal-row-label" style="color:#475569;">⚪ 기타휴가</span><span class="modal-row-val">${r.other}일</span></div>`;
+    if(r.ot_total) html+=`<div class="modal-row ot"><span class="modal-row-label">🟢 야근</span><span class="modal-row-val">평일 ${r.ot_weekday}h + 주말 ${r.ot_weekend}h = 합계 ${r.ot_total}h</span></div>`;
+    sec.innerHTML=html; body.appendChild(sec);
+  });
+  if(!any) body.innerHTML='<div style="color:#ccc;text-align:center;padding:20px;">기록 없음</div>';
+  document.getElementById('modalBg').classList.add('show');
+}
+
+function closeModal(e){ if(e.target===document.getElementById('modalBg')) document.getElementById('modalBg').classList.remove('show'); }
+
+// ── 초기화 ────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async ()=>{
+  // Supabase에서 먼저 로드 시도
+  const ok = await loadFromSupabase();
+  if(ok){
+    document.getElementById('uploadSec').classList.add('has-data');
+    document.getElementById('dropHint').style.display='none';
+    updateChips(); rebuildFilters(); render();
+  } else {
+    // Supabase 실패 시 localStorage 폴백
+    if(loadStorage()){
+      document.getElementById('uploadSec').classList.add('has-data');
+      document.getElementById('dropHint').style.display='none';
+      document.getElementById('upStatus').textContent=`✅ 로컬 데이터 복원됨 (${fileNames.length}개 파일)`;
+      updateChips(); rebuildFilters(); render();
+    }
+  }
+});
+</script>
+</body>
+</html>
